@@ -179,7 +179,8 @@ def _encoded_image_string_tensor_input_placeholder():
   def decode(encoded_image_string_tensor):
     image_tensor = tf.image.decode_image(encoded_image_string_tensor,
                                          channels=3)
-    image_tensor.set_shape((None, None, 3))
+    image_tensor = tf.reshape(tf.image.resize_bilinear([image_tensor], [600, 600]), (600, 600, 3))
+    image_tensor = tf.cast(image_tensor, tf.uint8)
     return image_tensor
   return (batch_image_str_placeholder,
           tf.map_fn(
