@@ -379,15 +379,19 @@ def write_saved_model(saved_model_path,
       builder = tf.saved_model.builder.SavedModelBuilder(saved_model_path)
 
       tensor_info_inputs = {}
+      key_placeholder = tf.placeholder(dtype=tf.string, shape=(None,))
       if isinstance(inputs, dict):
+        tensor_info_inputs["key"] = key_placeholder
         for k, v in inputs.items():
           tensor_info_inputs[k] = tf.saved_model.utils.build_tensor_info(v)
       else:
+        tensor_info_inputs["key"] = key_placeholder
         tensor_info_inputs['inputs'] = tf.saved_model.utils.build_tensor_info(
             inputs)
       tensor_info_outputs = {}
       for k, v in outputs.items():
         tensor_info_outputs[k] = tf.saved_model.utils.build_tensor_info(v)
+      tensor_info_outputs['key'] = tf.saved_model.utils.build_tensor_info(tf.identity(key_placeholder))
 
       detection_signature = (
           tf.saved_model.signature_def_utils.build_signature_def(
