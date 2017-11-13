@@ -288,7 +288,7 @@ def _write_saved_model(saved_model_path,
 
       tensor_info_inputs = {
           'key': tf.saved_model.utils.build_tensor_info(key_placeholder),
-          'inputs': tf.saved_model.utils.build_tensor_info(inputs)}
+          'image': tf.saved_model.utils.build_tensor_info(inputs)}
       tensor_info_outputs = {}
       for k, v in outputs.items():
         tensor_info_outputs[k] = tf.saved_model.utils.build_tensor_info(v)
