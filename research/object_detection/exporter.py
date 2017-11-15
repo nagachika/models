@@ -320,30 +320,15 @@ def add_output_tensor_nodes(postprocessed_tensors,
   masks = postprocessed_tensors.get(detection_fields.detection_masks)
   num_detections = postprocessed_tensors.get(detection_fields.num_detections)
   outputs = {}
-  outputs[detection_fields.detection_boxes] = tf.identity(
-      boxes, name=detection_fields.detection_boxes)
-  outputs[detection_fields.detection_scores] = tf.identity(
-      scores, name=detection_fields.detection_scores)
-  if multiclass_scores is not None:
-    outputs[detection_fields.detection_multiclass_scores] = tf.identity(
-        multiclass_scores, name=detection_fields.detection_multiclass_scores)
-  if box_classifier_features is not None:
-    outputs[detection_fields.detection_features] = tf.identity(
-        box_classifier_features,
-        name=detection_fields.detection_features)
-  outputs[detection_fields.detection_classes] = tf.identity(
-      classes, name=detection_fields.detection_classes)
-  outputs[detection_fields.num_detections] = tf.identity(
-      num_detections, name=detection_fields.num_detections)
-  if raw_boxes is not None:
-    outputs[detection_fields.raw_detection_boxes] = tf.identity(
-        raw_boxes, name=detection_fields.raw_detection_boxes)
-  if raw_scores is not None:
-    outputs[detection_fields.raw_detection_scores] = tf.identity(
-        raw_scores, name=detection_fields.raw_detection_scores)
-  if keypoints is not None:
-    outputs[detection_fields.detection_keypoints] = tf.identity(
-        keypoints, name=detection_fields.detection_keypoints)
+  instance_num = tf.shape(boxes)[0]
+  max_detections = tf.shape(boxes)[1]
+  outputs['detection_box_ymin'] = tf.squeeze(tf.slice(boxes, (0, 0, 0), (instance_num, max_detections, 1)), (2), name="detection_box_ymin")
+  outputs['detection_box_xmin'] = tf.squeeze(tf.slice(boxes, (0, 0, 1), (instance_num, max_detections, 1)), (2), name="detection_box_xmin")
+  outputs['detection_box_ymax'] = tf.squeeze(tf.slice(boxes, (0, 0, 2), (instance_num, max_detections, 1)), (2), name="detection_box_ymax")
+  outputs['detection_box_xmax'] = tf.squeeze(tf.slice(boxes, (0, 0, 3), (instance_num, max_detections, 1)), (2), name="detection_box_xmax")
+  outputs['detection_scores'] = tf.identity(scores, name='detection_scores')
+  outputs['detection_classes'] = tf.identity(classes, name='detection_classes')
+  outputs['num_detections'] = tf.identity(num_detections, name='num_detections')
   if masks is not None:
     outputs[detection_fields.detection_masks] = tf.identity(
         masks, name=detection_fields.detection_masks)
