@@ -234,7 +234,12 @@ def _add_output_tensor_nodes(postprocessed_tensors,
   masks = postprocessed_tensors.get('detection_masks')
   num_detections = postprocessed_tensors.get('num_detections')
   outputs = {}
-  outputs['detection_boxes'] = tf.identity(boxes, name='detection_boxes')
+  instance_num = tf.shape(boxes)[0]
+  max_detections = tf.shape(boxes)[1]
+  outputs['detection_box_ymin'] = tf.squeeze(tf.slice(boxes, (0, 0, 0), (instance_num, max_detections, 1)), (2), name="detection_box_ymin")
+  outputs['detection_box_xmin'] = tf.squeeze(tf.slice(boxes, (0, 0, 1), (instance_num, max_detections, 1)), (2), name="detection_box_xmin")
+  outputs['detection_box_ymax'] = tf.squeeze(tf.slice(boxes, (0, 0, 2), (instance_num, max_detections, 1)), (2), name="detection_box_ymax")
+  outputs['detection_box_xmax'] = tf.squeeze(tf.slice(boxes, (0, 0, 3), (instance_num, max_detections, 1)), (2), name="detection_box_xmax")
   outputs['detection_scores'] = tf.identity(scores, name='detection_scores')
   outputs['detection_classes'] = tf.identity(classes, name='detection_classes')
   outputs['num_detections'] = tf.identity(num_detections, name='num_detections')
