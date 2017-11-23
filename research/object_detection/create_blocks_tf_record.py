@@ -127,7 +127,7 @@ def main(_):
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
 
   logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
-  examples_list = tf.gfile.Glob(FLAGS.data_dir + "/*.json")
+  examples_list = tf.gfile.Glob(path.join(FLAGS.data_dir, "*.json"))
   for idx, example in enumerate(examples_list):
     if idx % 100 == 0:
       logging.info('On image %d of %d', idx, len(examples_list))
