@@ -29,6 +29,7 @@ import hashlib
 import io
 import logging
 import os
+import os.path as path
 import json
 
 import PIL.Image
@@ -120,6 +121,7 @@ def dict_to_tf_example(data, label_map_dict):
 def main(_):
   data_dir = FLAGS.data_dir
 
+  tf.gfile.MakeDirs(path.dirname(FLAGS.output_path))
   writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
 
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
