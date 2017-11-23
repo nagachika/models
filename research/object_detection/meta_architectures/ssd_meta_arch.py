@@ -28,7 +28,7 @@ from object_detection.core import model
 from object_detection.core import standard_fields as fields
 from object_detection.core import target_assigner
 from object_detection.utils import shape_utils
-from object_detection.utils import visualization_utils
+#from object_detection.utils import visualization_utils
 
 slim = tf.contrib.slim
 
@@ -506,13 +506,13 @@ class SSDMetaArch(model.DetectionModel):
     positive_indices = tf.where(tf.greater(class_ids, 0))
     positive_anchor_cls_loss = tf.squeeze(
         tf.gather(cls_losses, positive_indices), axis=1)
-    visualization_utils.add_cdf_image_summary(positive_anchor_cls_loss,
-                                              'PositiveAnchorLossCDF')
+    #visualization_utils.add_cdf_image_summary(positive_anchor_cls_loss,
+    #                                          'PositiveAnchorLossCDF')
     negative_indices = tf.where(tf.equal(class_ids, 0))
     negative_anchor_cls_loss = tf.squeeze(
         tf.gather(cls_losses, negative_indices), axis=1)
-    visualization_utils.add_cdf_image_summary(negative_anchor_cls_loss,
-                                              'NegativeAnchorLossCDF')
+    #visualization_utils.add_cdf_image_summary(negative_anchor_cls_loss,
+    #                                          'NegativeAnchorLossCDF')
 
   def _assign_targets(self, groundtruth_boxes_list, groundtruth_classes_list,
                       groundtruth_keypoints_list=None):
