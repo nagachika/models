@@ -33,6 +33,7 @@ import os.path as path
 import json
 
 import PIL.Image
+import StringIO
 import tensorflow as tf
 
 from object_detection.utils import dataset_util
@@ -70,10 +71,19 @@ def dict_to_tf_example(data, label_map_dict):
   if image.format != 'JPEG':
       tf.logging.warning("Image file %s is not JPEG! Skip this file." % [full_path])
       return None
+  image.thumbnail((600,600))
+  width = image.width
+  height = image.height
+  port = StringIO.StringIO()
+  image.save(port, format="JPEG")
+  image.close()
+  encoded_jpg = port.getvalue()
+  port.close()
+
   key = hashlib.sha256(encoded_jpg).hexdigest()
 
-  width = int(data['size']['width'])
-  height = int(data['size']['height'])
+  width = int(width)
+  height = int(height)
 
   xmin = []
   ymin = []
