@@ -24,7 +24,7 @@ install_requires = [
 
 setup(
     name='slim',
-    version='0.1',
+    version='0.2',
     install_requires=install_requires,
     include_package_data=True,
     packages=find_packages(),
