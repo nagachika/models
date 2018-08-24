@@ -82,8 +82,7 @@ def dict_to_tf_example(data, label_map_dict):
   classes = []
   classes_text = []
   truncated = []
-  poses = []
-  difficult_obj = []
+  is_crowd_obj = []
   for obj in data['objects']:
     xmin.append(float(obj['bndbox']['xmin']))
     ymin.append(float(obj['bndbox']['ymin']))
@@ -92,8 +91,7 @@ def dict_to_tf_example(data, label_map_dict):
     classes_text.append(obj['label'].encode('utf8'))
     classes.append(label_map_dict[obj['label']])
     truncated.append(0)
-    difficult_obj.append(False)
-    poses.append(''.encode('utf8'))
+    is_crowd_obj.append(False)
 
   example = tf.train.Example(features=tf.train.Features(feature={
       'image/height': dataset_util.int64_feature(height),
@@ -111,9 +109,8 @@ def dict_to_tf_example(data, label_map_dict):
       'image/object/bbox/ymax': dataset_util.float_list_feature(ymax),
       'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
       'image/object/class/label': dataset_util.int64_list_feature(classes),
-      'image/object/difficult': dataset_util.int64_list_feature(difficult_obj),
+      'image/object/is_crowd': dataset_util.int64_list_feature(is_crowd_obj),
       'image/object/truncated': dataset_util.int64_list_feature(truncated),
-      'image/object/view': dataset_util.bytes_list_feature(poses),
   }))
   return example
 
