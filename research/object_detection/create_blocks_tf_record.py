@@ -34,16 +34,10 @@ import json
 
 import PIL.Image
 import tensorflow as tf
+import argparse
 
 from object_detection.utils import dataset_util
 from object_detection.utils import label_map_util
-
-
-flags = tf.app.flags
-flags.DEFINE_string('data_dir', '', 'Root directory to JPEG images dataset.')
-flags.DEFINE_string('output_path', '', 'Path to output TFRecord')
-flags.DEFINE_string('label_map_path', '', 'Path to label map proto')
-FLAGS = flags.FLAGS
 
 
 def dict_to_tf_example(data, label_map_dict):
@@ -63,7 +57,7 @@ def dict_to_tf_example(data, label_map_dict):
     ValueError: if the image pointed to by data['filename'] is not a valid JPEG
   """
   full_path = data['filename']
-  with tf.gfile.GFile(full_path, 'rb') as fid:
+  with tf.io.gfile.GFile(full_path, 'rb') as fid:
     encoded_jpg = fid.read()
   encoded_jpg_io = io.BytesIO(encoded_jpg)
   image = PIL.Image.open(encoded_jpg_io)
@@ -115,20 +109,26 @@ def dict_to_tf_example(data, label_map_dict):
   return example
 
 
-def main(_):
+def main():
+  parser = argparse.ArgumentParser(description='')
+  parser.add_argument("--data_dir", required=True, help="Root directory to JPEG images dataset.")
+  parser.add_argument("--output_path", required=True, help="Path to output TFRecord")
+  parser.add_argument("--label_map_path", required=True, help="Path to label map proto")
+  FLAGS = parser.parse_args()
+
   data_dir = FLAGS.data_dir
 
-  tf.gfile.MakeDirs(path.dirname(FLAGS.output_path))
-  writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
+  tf.io.gfile.makedirs(path.dirname(FLAGS.output_path))
+  writer = tf.io.TFRecordWriter(FLAGS.output_path)
 
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
 
   logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
-  examples_list = tf.gfile.Glob(path.join(FLAGS.data_dir, "*.json"))
+  examples_list = tf.io.gfile.glob(path.join(FLAGS.data_dir, "*.json"))
   for idx, example in enumerate(examples_list):
     if idx % 100 == 0:
       logging.info('On image %d of %d', idx, len(examples_list))
-    with tf.gfile.GFile(example, 'r') as fid:
+    with tf.io.gfile.GFile(example, 'r') as fid:
       json_str = fid.read()
     data = json.loads(json_str)
 
@@ -140,4 +140,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-  tf.app.run()
+  main()
