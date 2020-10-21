@@ -4,7 +4,21 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-REQUIRED_PACKAGES = ['Pillow>=1.0', 'Cython>=0.28.1']
+REQUIRED_PACKAGES = [
+        'avro-python3',
+        'apache-beam',
+        'pillow',
+        'lxml',
+        'matplotlib',
+        'Cython',
+        'contextlib2',
+        'tf-slim',
+        'six',
+        'pycocotools',
+        'scipy',
+        'pandas',
+        'tf-models-official'
+        ]
 
 setup(
     name='object_detection',
