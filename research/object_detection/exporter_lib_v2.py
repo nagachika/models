@@ -174,6 +174,35 @@ class DetectionFromEncodedImageModule(DetectionInferenceModule):
     return self._run_inference_on_images(image)
 
 
+class DetectionFromEncodedImageWithKeyModule(DetectionInferenceModule):
+  """Detection Inference Module for encoded image string inputs."""
+
+  @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.string), tf.TensorSpec(shape=[None], dtype=tf.string)])
+  def __call__(self, key, image):
+    with tf.device('cpu:0'):
+      image = tf.map_fn(
+          _decode_image,
+          elems=image,
+          dtype=tf.uint8,
+          parallel_iterations=32,
+          back_prop=False)
+    detections = self._run_inference_on_images(image)
+    instance_num = tf.shape(detections["detection_boxes"])[0]
+    max_detections = tf.shape(detections["detection_boxes"])[1]
+    bboxes = detections["detection_boxes"]
+    detections['detection_box_ymin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 0), (instance_num, max_detections, 1)), (2), name="detection_box_ymin")
+    detections['detection_box_xmin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 1), (instance_num, max_detections, 1)), (2), name="detection_box_xmin")
+    detections['detection_box_ymax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 2), (instance_num, max_detections, 1)), (2), name="detection_box_ymax")
+    detections['detection_box_xmax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 3), (instance_num, max_detections, 1)), (2), name="detection_box_xmax")
+    del detections["detection_boxes"]
+    del detections["raw_detection_scores"]
+    del detections["raw_detection_boxes"]
+    del detections["detection_multiclass_scores"]
+    del detections["detection_anchor_indices"]
+    detections["key"] = key
+    return detections
+
+
 class DetectionFromTFExampleModule(DetectionInferenceModule):
   """Detection Inference Module for TF.Example inputs."""
 
@@ -191,7 +220,7 @@ class DetectionFromTFExampleModule(DetectionInferenceModule):
 DETECTION_MODULE_MAP = {
     'image_tensor': DetectionFromImageModule,
     'encoded_image_string_tensor':
-    DetectionFromEncodedImageModule,
+    DetectionFromEncodedImageWithKeyModule,
     'tf_example': DetectionFromTFExampleModule,
     'float_image_tensor': DetectionFromFloatImageModule
 }
