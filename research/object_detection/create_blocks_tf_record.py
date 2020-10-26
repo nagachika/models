@@ -31,6 +31,8 @@ import logging
 import os
 import os.path as path
 import json
+import threading
+import queue
 
 import PIL.Image
 import tensorflow as tf
@@ -108,6 +110,23 @@ def dict_to_tf_example(data, label_map_dict):
   }))
   return example
 
+def worker(q, output_path, label_map_dict):
+    logging.info("open writer to {}".format(output_path))
+    writer = tf.io.TFRecordWriter(output_path)
+    while True:
+        image_path = q.get()
+        if image_path == None:
+          logging.info("Flush writer to {}".format(output_path))
+          writer.close()
+          q.task_done()
+          return
+        with tf.io.gfile.GFile(image_path, 'r') as fid:
+            json_str = fid.read()
+        data = json.loads(json_str)
+        tf_example = dict_to_tf_example(data, label_map_dict)
+        if tf_example:
+            writer.write(tf_example.SerializeToString())
+        q.task_done()
 
 def main():
   parser = argparse.ArgumentParser(description='')
@@ -119,24 +138,29 @@ def main():
   data_dir = FLAGS.data_dir
 
   tf.io.gfile.makedirs(path.dirname(FLAGS.output_path))
-  writer = tf.io.TFRecordWriter(FLAGS.output_path)
 
+  q = queue.Queue(1024)
+  threads = []
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
+  for i in range(10):
+    output_path = "%s_%05d" % (FLAGS.output_path, i+1)
+    th = threading.Thread(target=worker, daemon=True, args=[q, output_path, label_map_dict])
+    threads.append(th)
+    th.start()
 
   logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
   examples_list = tf.io.gfile.glob(path.join(FLAGS.data_dir, "*.json"))
   for idx, example in enumerate(examples_list):
     if idx % 100 == 0:
       logging.info('On image %d of %d', idx, len(examples_list))
-    with tf.io.gfile.GFile(example, 'r') as fid:
-      json_str = fid.read()
-    data = json.loads(json_str)
+    q.put(example)
 
-    tf_example = dict_to_tf_example(data, label_map_dict)
-    if tf_example:
-        writer.write(tf_example.SerializeToString())
+  for _ in range(10):
+      q.put(None)
 
-  writer.close()
+  logging.info('Wait all conversion done.')
+  q.join()
+  logging.info('All conversion done.')
 
 
 if __name__ == '__main__':
