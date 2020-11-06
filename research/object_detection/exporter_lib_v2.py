@@ -19,6 +19,8 @@ import ast
 import os
 
 import tensorflow.compat.v2 as tf
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+
 from object_detection.builders import model_builder
 from object_detection.core import standard_fields as fields
 from object_detection.data_decoders import tf_example_decoder
@@ -174,32 +176,24 @@ class DetectionFromEncodedImageModule(DetectionInferenceModule):
     return self._run_inference_on_images(image)
 
 
-class DetectionFromEncodedImageWithKeyModule(DetectionInferenceModule):
-  """Detection Inference Module for encoded image string inputs."""
+class DetectionFromEncodedImageForBlocksModule(DetectionInferenceModule):
+  """Detection Inference Module for encoded image string inputs(for BLOCKS)."""
 
-  @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.string), tf.TensorSpec(shape=[None], dtype=tf.string)])
-  def __call__(self, key, image):
+  @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.string)])
+  def __call__(self, input_tensor):
     with tf.device('cpu:0'):
       image = tf.map_fn(
           _decode_image,
-          elems=image,
+          elems=input_tensor,
           dtype=tf.uint8,
           parallel_iterations=32,
           back_prop=False)
     detections = self._run_inference_on_images(image)
-    instance_num = tf.shape(detections["detection_boxes"])[0]
-    max_detections = tf.shape(detections["detection_boxes"])[1]
-    bboxes = detections["detection_boxes"]
-    detections['detection_box_ymin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 0), (instance_num, max_detections, 1)), (2), name="detection_box_ymin")
-    detections['detection_box_xmin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 1), (instance_num, max_detections, 1)), (2), name="detection_box_xmin")
-    detections['detection_box_ymax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 2), (instance_num, max_detections, 1)), (2), name="detection_box_ymax")
-    detections['detection_box_xmax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 3), (instance_num, max_detections, 1)), (2), name="detection_box_xmax")
-    del detections["detection_boxes"]
+    detections["detection_classes"] = tf.cast(detections["detection_classes"], tf.int32)
     del detections["raw_detection_scores"]
     del detections["raw_detection_boxes"]
     del detections["detection_multiclass_scores"]
     del detections["detection_anchor_indices"]
-    detections["key"] = key
     return detections
 
 
@@ -219,11 +213,55 @@ class DetectionFromTFExampleModule(DetectionInferenceModule):
 
 DETECTION_MODULE_MAP = {
     'image_tensor': DetectionFromImageModule,
-    'encoded_image_string_tensor':
-    DetectionFromEncodedImageWithKeyModule,
+    'encoded_image_string_tensor': DetectionFromEncodedImageForBlocksModule,
     'tf_example': DetectionFromTFExampleModule,
     'float_image_tensor': DetectionFromFloatImageModule
 }
+
+class FrozenWrapperModule(tf.Module):
+  def __init__(self, model, name=None):
+      super(FrozenWrapperModule, self).__init__(name=name)
+      frozen_func = convert_variables_to_constants_v2(model.__call__.get_concrete_function())
+      self._frozen_func = frozen_func
+
+  @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.string)])
+  def __call__(self, image):
+    result = self._frozen_func(input_tensor=image)
+    obj = {}
+    for item in result:
+        if len(item.shape) == 1:
+            obj["num_detections"] = item
+        elif len(item.shape) == 2 and item.dtype == tf.float32:
+            obj["detection_scores"] = item
+        elif len(item.shape) == 2 and item.dtype == tf.int32:
+            obj["detection_classes"] = item
+        elif len(item.shape) == 3:
+            obj["detection_boxes"] = item
+        else:
+            raise ValueError("Unknown output shape&dtype: {}, {}".format(item.shape, item.dtype))
+    return obj
+
+
+class DetectionWithKeyModule(tf.Module):
+  """Detection Inference Module for encoded image string inputs."""
+
+  def __init__(self, model, name=None):
+      super(DetectionWithKeyModule, self).__init__(name=name)
+      self._model = model
+
+  @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.string), tf.TensorSpec(shape=[None], dtype=tf.string)])
+  def __call__(self, key, image):
+    detections = self._model(image)
+    instance_num = tf.shape(detections["detection_boxes"])[0]
+    max_detections = tf.shape(detections["detection_boxes"])[1]
+    bboxes = detections["detection_boxes"]
+    detections['detection_box_ymin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 0), (instance_num, max_detections, 1)), (2), name="detection_box_ymin")
+    detections['detection_box_xmin'] = tf.squeeze(tf.slice(bboxes, (0, 0, 1), (instance_num, max_detections, 1)), (2), name="detection_box_xmin")
+    detections['detection_box_ymax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 2), (instance_num, max_detections, 1)), (2), name="detection_box_ymax")
+    detections['detection_box_xmax'] = tf.squeeze(tf.slice(bboxes, (0, 0, 3), (instance_num, max_detections, 1)), (2), name="detection_box_xmax")
+    del detections["detection_boxes"]
+    detections["key"] = key
+    return detections
 
 
 def export_inference_graph(input_type,
@@ -282,6 +320,11 @@ def export_inference_graph(input_type,
   detection_module = DETECTION_MODULE_MAP[input_type](detection_model,
                                                       use_side_inputs,
                                                       list(zipped_side_inputs))
+
+  frozen_module = FrozenWrapperModule(detection_module)
+  tweaked_module = DetectionWithKeyModule(frozen_module)
+  detection_module = tweaked_module
+
   # Getting the concrete function traces the graph and forces variables to
   # be constructed --- only after this can we save the checkpoint and
   # saved model.
@@ -294,6 +337,6 @@ def export_inference_graph(input_type,
 
   tf.saved_model.save(detection_module,
                       output_saved_model_directory,
-                      signatures=concrete_function)
+                      signatures={ "serving_default": concrete_function })
 
   config_util.save_pipeline_config(pipeline_config, output_directory)
