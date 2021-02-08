@@ -110,23 +110,34 @@ def dict_to_tf_example(data, label_map_dict):
   }))
   return example
 
-def worker(q, output_path, label_map_dict):
+def worker(q, output_path, label_map_dict, exceptions):
+    task_popped = False
     logging.info("open writer to {}".format(output_path))
     writer = tf.io.TFRecordWriter(output_path)
     while True:
-        image_path = q.get()
-        if image_path == None:
-          logging.info("Flush writer to {}".format(output_path))
-          writer.close()
-          q.task_done()
-          return
-        with tf.io.gfile.GFile(image_path, 'r') as fid:
-            json_str = fid.read()
-        data = json.loads(json_str)
-        tf_example = dict_to_tf_example(data, label_map_dict)
-        if tf_example:
-            writer.write(tf_example.SerializeToString())
-        q.task_done()
+        try:
+            idx, image_path = q.get()
+            task_popped = True
+            if image_path == None:
+              logging.info("Flush writer to {}".format(output_path))
+              writer.close()
+              q.task_done()
+              return
+            with tf.io.gfile.GFile(image_path, 'r') as fid:
+                json_str = fid.read()
+            data = json.loads(json_str)
+            tf_example = dict_to_tf_example(data, label_map_dict)
+            if tf_example:
+                writer.write(tf_example.SerializeToString())
+            q.task_done()
+            task_popped = False
+            if idx % 100 == 0:
+                logging.info('On image %d of %d', idx, len(examples_list))
+        except Exception as e:
+            logging.error("preprocessing image failed: {}: {}".format(type(e).__name__, e))
+            if task_popped:
+                q.task_done()
+            exceptions.append(e)
 
 def main():
   parser = argparse.ArgumentParser(description='')
@@ -139,29 +150,32 @@ def main():
 
   tf.io.gfile.makedirs(path.dirname(FLAGS.output_path))
 
-  q = queue.Queue(1024)
-  threads = []
+  q = queue.Queue()
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
-  for i in range(10):
+  logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
+  examples_list = tf.io.gfile.glob(path.join(FLAGS.data_dir, "*.json"))
+
+  for idx, example in enumerate(examples_list):
+    q.put((idx, example))
+
+  threads_num = min(10, len(examples_list))
+  threads = []
+  exceptions = []
+  for i in range(threads_num):
     output_path = "%s_%05d" % (FLAGS.output_path, i+1)
-    th = threading.Thread(target=worker, daemon=True, args=[q, output_path, label_map_dict])
+    th = threading.Thread(target=worker, daemon=True, args=[q, output_path, label_map_dict, exceptions])
     threads.append(th)
     th.start()
 
-  logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
-  examples_list = tf.io.gfile.glob(path.join(FLAGS.data_dir, "*.json"))
-  for idx, example in enumerate(examples_list):
-    if idx % 100 == 0:
-      logging.info('On image %d of %d', idx, len(examples_list))
-    q.put(example)
-
-  for _ in range(10):
+  for _ in range(threads_num):
       q.put(None)
 
   logging.info('Wait all conversion done.')
   q.join()
   logging.info('All conversion done.')
 
+  if len(exceptions) != 0:
+      raise ValueError("Some image preprocessing failed.")
 
 if __name__ == '__main__':
   main()
