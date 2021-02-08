@@ -22,7 +22,7 @@ REQUIRED_PACKAGES = [
 
 setup(
     name='object_detection',
-    version='0.5',
+    version='0.6',
     install_requires=REQUIRED_PACKAGES,
     include_package_data=True,
     packages=[p for p in find_packages() if p.startswith('object_detection')],
