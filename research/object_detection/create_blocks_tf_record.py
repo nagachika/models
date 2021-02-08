@@ -63,9 +63,10 @@ def dict_to_tf_example(data, label_map_dict):
     encoded_jpg = fid.read()
   encoded_jpg_io = io.BytesIO(encoded_jpg)
   image = PIL.Image.open(encoded_jpg_io)
-  if image.format != 'JPEG':
-      tf.logging.warning("Image file %s is not JPEG! Skip this file." % [full_path])
-      return None
+  image = image.resize((300, 300), PIL.Image.BICUBIC)
+  buf = io.BytesIO()
+  image.save(buf, "JPEG")
+  encoded_jpg = buf.getvalue()
   key = hashlib.sha256(encoded_jpg).hexdigest()
 
   width = int(data['size']['width'])
@@ -154,6 +155,9 @@ def main():
   label_map_dict = label_map_util.get_label_map_dict(FLAGS.label_map_path)
   logging.info('Reading from dataset (JSON) in %s.', FLAGS.data_dir)
   examples_list = tf.io.gfile.glob(path.join(FLAGS.data_dir, "*.json"))
+
+  if len(examples_list) == 0:
+      raise ValueError("No annotation example was found.")
 
   for idx, example in enumerate(examples_list):
     q.put((idx, example))
