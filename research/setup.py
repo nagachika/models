@@ -17,12 +17,12 @@ REQUIRED_PACKAGES = [
         'pycocotools',
         'scipy',
         'pandas',
-        'tf-models-official==2.3.0'
+        'tf-models-official==2.4.0'
         ]
 
 setup(
     name='object_detection',
-    version='0.6',
+    version='0.7',
     install_requires=REQUIRED_PACKAGES,
     include_package_data=True,
     packages=[p for p in find_packages() if p.startswith('object_detection')],
