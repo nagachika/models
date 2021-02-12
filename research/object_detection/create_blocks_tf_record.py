@@ -149,6 +149,9 @@ def main():
 
   data_dir = FLAGS.data_dir
 
+  logging.info("TensorFlow version = {}".format(tf.__version__))
+  logging.info("data_dir = {}".format(data_dir))
+
   tf.io.gfile.makedirs(path.dirname(FLAGS.output_path))
 
   q = queue.Queue()
